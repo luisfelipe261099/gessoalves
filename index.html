@@ -922,7 +922,7 @@
   <div class="container">
     <h2 class="section-title">Nosso <span class="tag-orange">Portfólio</span></h2>
     <p class="section-sub">Obras reais entregues em Curitiba e Região Metropolitana. Qualidade que você pode ver.</p>
-    <div class="port-grid">
+    <div class="port-grid" id="portGrid">
 
       <div class="port-item">
         <img src="ForroseSancas.png" alt="Forro de gesso com sanca e iluminação LED em sala de estar" loading="lazy" />
@@ -955,6 +955,34 @@
       </div>
 
     </div>
+    <script>
+    (function(){
+      fetch('portfolio-data.php')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (!data.images || data.images.length === 0) return;
+          var grid = document.getElementById('portGrid');
+          grid.innerHTML = '';
+          data.images.forEach(function(img){
+            var item    = document.createElement('div');
+            item.className = 'port-item';
+            var image   = document.createElement('img');
+            image.src   = img.src;
+            image.alt   = img.alt;
+            image.loading = 'lazy';
+            var overlay = document.createElement('div');
+            overlay.className = 'port-overlay';
+            var span    = document.createElement('span');
+            span.textContent = img.label;
+            overlay.appendChild(span);
+            item.appendChild(image);
+            item.appendChild(overlay);
+            grid.appendChild(item);
+          });
+        })
+        .catch(function(){});
+    })();
+    </script>
 
     <div style="text-align:center;margin-top:44px;">
       <a href="https://wa.me/5541984555435?text=Olá!%20Gostaria%20de%20ver%20mais%20fotos%20do%20portfólio%20e%20solicitar%20orçamento." target="_blank" rel="noopener" class="btn-cta">Ver Mais no WhatsApp</a>
