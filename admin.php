@@ -67,6 +67,38 @@ if ($logged) {
         file_put_contents($f, json_encode($t, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     }
 
+    // ── Image compress helper ───────────────────────────────────
+    // Resizes to max 1400px wide/tall and saves as JPEG 85% quality (~150-300KB)
+    function compress_image(string $src, string $dest, int $max_side = 1400, int $quality = 85): bool {
+        $info = @getimagesize($src);
+        if (!$info) return false;
+        [$w, $h, $type] = $info;
+        switch ($type) {
+            case IMAGETYPE_JPEG: $img = @imagecreatefromjpeg($src); break;
+            case IMAGETYPE_PNG:  $img = @imagecreatefrompng($src);  break;
+            case IMAGETYPE_GIF:  $img = @imagecreatefromgif($src);  break;
+            case IMAGETYPE_WEBP: $img = @imagecreatefromwebp($src); break;
+            default: return false;
+        }
+        if (!$img) return false;
+        // Calculate new dimensions keeping aspect ratio
+        if ($w > $max_side || $h > $max_side) {
+            if ($w >= $h) { $nw = $max_side; $nh = (int)round($h * $max_side / $w); }
+            else          { $nh = $max_side; $nw = (int)round($w * $max_side / $h); }
+        } else {
+            $nw = $w; $nh = $h;
+        }
+        $out = imagecreatetruecolor($nw, $nh);
+        // Preserve transparency for PNG
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+        imagecopyresampled($out, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        $result = imagejpeg($out, $dest, $quality);
+        imagedestroy($img);
+        imagedestroy($out);
+        return $result;
+    }
+
     // UPLOAD
     if (isset($_POST['action']) && $_POST['action'] === 'upload' && csrf_verify()) {
         if (isset($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
@@ -86,9 +118,15 @@ if ($logged) {
             } else {
                 $safeName = preg_replace('/[^a-zA-Z0-9\-_]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
                 $safeName = substr($safeName, 0, 60);
-                $fname    = uniqid('p_') . '_' . $safeName . '.' . $ext;
-                $dest     = UPLOAD_DIR . $fname;
-                move_uploaded_file($file['tmp_name'], $dest);
+                // Always save as .jpg after compression
+                $fname = uniqid('p_') . '_' . $safeName . '.jpg';
+                $dest  = UPLOAD_DIR . $fname;
+                if (!compress_image($file['tmp_name'], $dest)) {
+                    // Fallback: save original if GD fails
+                    $fname = uniqid('p_') . '_' . $safeName . '.' . $ext;
+                    $dest  = UPLOAD_DIR . $fname;
+                    move_uploaded_file($file['tmp_name'], $dest);
+                }
                 // Save title
                 $title  = trim(strip_tags($_POST['titulo'] ?? ''));
                 $titles = load_titles($titles_file);
