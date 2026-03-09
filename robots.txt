@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin.php
+Disallow: /uploads/
+
+Sitemap: https://gessoalvescwb.com.br/sitemap.xml
