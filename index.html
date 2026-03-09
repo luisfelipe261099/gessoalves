@@ -514,8 +514,17 @@
       aspect-ratio: 4/3;
       background: var(--gray);
     }
-    .port-item img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s; }
+    .port-item img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s, opacity .4s; opacity: 0; }
+    .port-item img.loaded { opacity: 1; }
     .port-item:hover img { transform: scale(1.06); }
+    /* Skeleton */
+    .port-skeleton {
+      border-radius: 14px; aspect-ratio: 4/3;
+      background: linear-gradient(90deg, #d6cfbf 25%, #ede8dc 50%, #d6cfbf 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
     .port-overlay {
       position: absolute; inset: 0;
       background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,.65));
@@ -1073,19 +1082,29 @@
     </div>
     <script>
     (function(){
+      var grid = document.getElementById('portGrid');
+
+      // Show 6 skeletons immediately while fetching
+      for (var s = 0; s < 6; s++) {
+        var sk = document.createElement('div');
+        sk.className = 'port-skeleton';
+        grid.appendChild(sk);
+      }
+
       fetch('portfolio-data.php')
         .then(function(r){ return r.json(); })
         .then(function(data){
           if (!data.images || data.images.length === 0) return;
-          var grid = document.getElementById('portGrid');
           grid.innerHTML = '';
-          data.images.forEach(function(img){
+          data.images.forEach(function(img, i){
             var item    = document.createElement('div');
             item.className = 'port-item';
             var image   = document.createElement('img');
-            image.src   = img.src;
             image.alt   = img.alt;
-            image.loading = 'lazy';
+            image.loading = i < 4 ? 'eager' : 'lazy';
+            image.onload = function(){ this.classList.add('loaded'); };
+            if (image.complete) image.classList.add('loaded');
+            image.src   = img.src;
             var overlay = document.createElement('div');
             overlay.className = 'port-overlay';
             var span    = document.createElement('span');
@@ -1096,7 +1115,10 @@
             grid.appendChild(item);
           });
         })
-        .catch(function(){});
+        .catch(function(){
+          // On error just clear skeletons, static fallback images remain if grid was pre-filled
+          grid.innerHTML = '';
+        });
     })();
     </script>
 

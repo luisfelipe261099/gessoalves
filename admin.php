@@ -56,6 +56,17 @@ if ($logged) {
             "php_flag engine off\nOptions -ExecCGI\nAddHandler default-handler .php\n");
     }
 
+    // ── Titles helpers ─────────────────────────────────────────
+    $titles_file = UPLOAD_DIR . 'titles.json';
+    function load_titles(string $f): array {
+        if (!is_file($f)) return [];
+        $data = json_decode(file_get_contents($f), true);
+        return is_array($data) ? $data : [];
+    }
+    function save_titles(string $f, array $t): void {
+        file_put_contents($f, json_encode($t, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+
     // UPLOAD
     if (isset($_POST['action']) && $_POST['action'] === 'upload' && csrf_verify()) {
         if (isset($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
@@ -73,11 +84,16 @@ if ($logged) {
             } elseif (!@getimagesize($file['tmp_name'])) {
                 $error = 'O arquivo não é uma imagem válida.';
             } else {
-                // Sanitize original name & add unique prefix
                 $safeName = preg_replace('/[^a-zA-Z0-9\-_]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
                 $safeName = substr($safeName, 0, 60);
-                $dest     = UPLOAD_DIR . uniqid('p_') . '_' . $safeName . '.' . $ext;
+                $fname    = uniqid('p_') . '_' . $safeName . '.' . $ext;
+                $dest     = UPLOAD_DIR . $fname;
                 move_uploaded_file($file['tmp_name'], $dest);
+                // Save title
+                $title  = trim(strip_tags($_POST['titulo'] ?? ''));
+                $titles = load_titles($titles_file);
+                $titles[$fname] = $title !== '' ? $title : $safeName;
+                save_titles($titles_file, $titles);
                 $success = 'Foto adicionada com sucesso!';
             }
         } else {
@@ -91,6 +107,9 @@ if ($logged) {
         $fullpath = UPLOAD_DIR . $fname;
         if ($fname && is_file($fullpath) && strpos(realpath($fullpath), realpath(UPLOAD_DIR)) === 0) {
             unlink($fullpath);
+            $titles = load_titles($titles_file);
+            unset($titles[$fname]);
+            save_titles($titles_file, $titles);
             $success = 'Foto removida.';
         } else {
             $error = 'Arquivo não encontrado.';
@@ -98,6 +117,7 @@ if ($logged) {
     }
 
     // Load images
+    $titles = load_titles($titles_file);
     $images = [];
     if (is_dir(UPLOAD_DIR)) {
         $files = @scandir(UPLOAD_DIR);
@@ -108,7 +128,7 @@ if ($logged) {
                 if (!in_array($ext, $ALLOWED_EXT, true)) continue;
                 $fp = UPLOAD_DIR . $f;
                 if (!@getimagesize($fp)) continue;
-                $images[] = $f;
+                $images[] = ['file' => $f, 'title' => $titles[$f] ?? $f];
             }
         }
     }
@@ -248,6 +268,11 @@ $csrf = csrf_token();
           </label>
           <div id="file-name">Nenhum arquivo selecionado</div>
         </div>
+        <div class="field" style="min-width:220px;margin:0;">
+          <label style="display:block;font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Título da Foto</label>
+          <input type="text" name="titulo" placeholder="Ex: Sanca com LED — Sala de Estar" maxlength="80"
+            style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:11px 14px;font-family:inherit;font-size:.95rem;color:var(--green);background:var(--beige);">
+        </div>
         <button type="submit" class="btn btn-gold">Enviar Foto</button>
       </div>
     </form>
@@ -266,14 +291,14 @@ $csrf = csrf_token();
   </div>
   <?php else: ?>
   <div class="photo-grid">
-    <?php foreach ($images as $img): ?>
+    <?php foreach ($images as $item): ?>
     <div class="photo-card">
-      <img src="<?= htmlspecialchars(UPLOAD_URL . rawurlencode($img)) ?>" alt="<?= htmlspecialchars($img) ?>" loading="lazy">
-      <div class="photo-name"><?= htmlspecialchars($img) ?></div>
+      <img src="<?= htmlspecialchars(UPLOAD_URL . rawurlencode($item['file'])) ?>" alt="<?= htmlspecialchars($item['title']) ?>" loading="lazy">
+      <div class="photo-name"><?= htmlspecialchars($item['title']) ?></div>
       <form method="POST" onsubmit="return confirm('Remover esta foto do portfólio?')">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="csrf"   value="<?= htmlspecialchars($csrf) ?>">
-        <input type="hidden" name="file"   value="<?= htmlspecialchars($img) ?>">
+        <input type="hidden" name="file"   value="<?= htmlspecialchars($item['file']) ?>">
         <button type="submit" class="btn-del">🗑 Remover</button>
       </form>
     </div>
